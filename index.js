@@ -74,8 +74,40 @@ async function startBot() {
     return out;
   }
 
-  // Dengar pesan masuk
-  sock.ev.on("messages.upsert", async ({ messages, type }) => {
+  // =========================
+  // 📌 FITUR WELCOME & GOODBYE
+  // =========================
+  sock.ev.on("group-participants.update", async (update) => {
+    try {
+      const metadata = await sock.groupMetadata(update.id);
+      const groupName = metadata.subject;
+
+      for (const participant of update.participants) {
+        if (update.action === "add") {
+          await sock.sendMessage(update.id, {
+            text: `*(Bot)* Selamat datang @${
+              participant.split("@")[0]
+            } di grup *${groupName}*!\nSemoga betah ya. 👋`,
+            mentions: [participant],
+          });
+        } else if (update.action === "remove") {
+          await sock.sendMessage(update.id, {
+            text: `*(Bot)* Selamat tinggal @${
+              participant.split("@")[0]
+            }!\nSemoga kita bertemu lagi.`,
+            mentions: [participant],
+          });
+        }
+      }
+    } catch (err) {
+      console.error("❌ Error welcome/goodbye:", err);
+    }
+  });
+
+  // =========================
+  // 📌 FITUR PESAN (COMMAND)
+  // =========================
+  sock.ev.on("messages.upsert", async ({ messages }) => {
     if (!messages || !messages[0]) return;
     const msg = messages[0];
 
@@ -93,7 +125,6 @@ async function startBot() {
     }
 
     // --- Perintah: !tagall [pesan opsional]
-    // Hanya boleh dipakai di grup + oleh admin
     if (text.toLowerCase().startsWith("!tagall")) {
       if (!isGroupJid(from)) {
         await sock.sendMessage(from, {
@@ -121,11 +152,11 @@ async function startBot() {
       if (botJid) members = members.filter((j) => j !== botJid);
 
       // Ambil pesan tambahan setelah !tagall
-      const extraText = text.replace(/^!tagall/i, "").trim(); // bisa kosong
+      const extraText = text.replace(/^!tagall/i, "").trim();
       const header = extraText ? extraText : "Halo semuanya 👋";
 
       // Jika grup besar, kirim dalam beberapa batch
-      const batches = chunkArray(members, 25); // 25 mention per pesan (aman & nyaman)
+      const batches = chunkArray(members, 25);
       for (const batch of batches) {
         const atText = batch.map((j) => "@" + j.split("@")[0]).join(" ");
         const body = `${header}\n\n${atText}`;
