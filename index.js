@@ -153,7 +153,7 @@ async function startBot() {
 
       // Ambil pesan tambahan setelah !tagall
       const extraText = text.replace(/^!tagall/i, "").trim();
-      const header = extraText ? extraText : "Halo semuanya 👋";
+      const header = extraText ? extraText : "Izin tag guys";
 
       // Jika grup besar, kirim dalam beberapa batch
       const batches = chunkArray(members, 25);
