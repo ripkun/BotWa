@@ -87,7 +87,7 @@ async function startBot() {
           await sock.sendMessage(update.id, {
             text: `*(Bot)* Selamat datang @${
               participant.split("@")[0]
-            } di grup *${groupName}*!\nSemoga betah ya. 👋`,
+            } di *${groupName}*!. \nJangan lupa baca deskripsi grup ya!. \nSemoga betah.👋`,
             mentions: [participant],
           });
         } else if (update.action === "remove") {
