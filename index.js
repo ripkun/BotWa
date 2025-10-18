@@ -5,6 +5,8 @@ const {
   DisconnectReason,
 } = require("@whiskeysockets/baileys");
 const P = require("pino");
+const { webcrypto } = require("crypto");
+globalThis.crypto = webcrypto; // ✅ Tambahkan agar crypto.subtle tersedia di Node.js
 
 async function startBot() {
   // Simpan sesi auth di folder "auth"
@@ -15,14 +17,23 @@ async function startBot() {
     version,
     auth: state,
     logger: P({ level: "silent" }),
-    printQRInTerminal: true, // QR akan tampil di terminal pada first login
+    // ❌ printQRInTerminal dihapus (sudah deprecated)
   });
 
   // Simpan kredensial bila berubah
   sock.ev.on("creds.update", saveCreds);
 
-  // Monitor koneksi + auto-reconnect
-  sock.ev.on("connection.update", ({ connection, lastDisconnect }) => {
+  // Monitor koneksi + tampilkan QR + auto-reconnect
+  sock.ev.on("connection.update", (update) => {
+    const { connection, lastDisconnect, qr } = update;
+
+    const qrcode = require("qrcode-terminal");
+
+    if (qr) {
+      console.log("📱 Scan QR ini sebelum timeout:\n");
+      qrcode.generate(qr, { small: true }); // tampilkan QR langsung di terminal
+    }
+
     if (connection === "close") {
       const statusCode = lastDisconnect?.error?.output?.statusCode;
       const loggedOut = statusCode === DisconnectReason.loggedOut;
@@ -87,7 +98,7 @@ async function startBot() {
           await sock.sendMessage(update.id, {
             text: `*(Bot)* Selamat datang @${
               participant.split("@")[0]
-            } di *${groupName}*!. \nJangan lupa baca deskripsi grup ya!. \nSemoga betah.👋`,
+            } di *${groupName}*! 👋\nJangan lupa baca deskripsi grup ya.`,
             mentions: [participant],
           });
         } else if (update.action === "remove") {
@@ -115,7 +126,7 @@ async function startBot() {
     if (msg.key.remoteJid === "status@broadcast") return;
 
     const from = msg.key.remoteJid;
-    const sender = msg.key.participant || msg.key.remoteJid; // pengirim (di grup ada participant)
+    const sender = msg.key.participant || msg.key.remoteJid;
     const text = getText(msg);
 
     // --- Perintah sederhana: !ping
@@ -133,7 +144,6 @@ async function startBot() {
         return;
       }
 
-      // Cek admin
       const admins = await getGroupAdmins(from);
       const isAdmin = admins.includes(sender);
       if (!isAdmin) {
@@ -143,19 +153,15 @@ async function startBot() {
         return;
       }
 
-      // Ambil metadata & peserta
       const meta = await sock.groupMetadata(from);
       let members = meta.participants.map((p) => p.id);
 
-      // (Opsional) jangan mention bot sendiri
       const botJid = sock.user?.id;
       if (botJid) members = members.filter((j) => j !== botJid);
 
-      // Ambil pesan tambahan setelah !tagall
       const extraText = text.replace(/^!tagall/i, "").trim();
-      const header = extraText ? extraText : "Izin tag guys";
+      const header = extraText ? extraText : "Izin tag semua anggota 😄";
 
-      // Jika grup besar, kirim dalam beberapa batch
       const batches = chunkArray(members, 25);
       for (const batch of batches) {
         const atText = batch.map((j) => "@" + j.split("@")[0]).join(" ");
